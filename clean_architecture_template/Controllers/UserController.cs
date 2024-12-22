@@ -13,7 +13,6 @@ namespace clean_architecture_template.Controllers
     /// <param name="logger"></param>
     [ApiController]
     [Route("[controller]")]
-    [Authorize] //Allow for Basic Authentication
     public class UserController(IUserService userService, IJwtService jwtService, ILogger<UserController> logger) : ControllerBase
     {
         private readonly Response _response = new();
@@ -23,7 +22,7 @@ namespace clean_architecture_template.Controllers
         /// <param name="user"></param>
         /// <returns>Returns success</returns>
         [HttpPost("[action]")]
-        [AllowAnonymous] //Allow to bypass authentication
+        [AllowAnonymous]
         public async Task<IActionResult> Create([FromBody] UserModel user)
         {
             if (!ModelState.IsValid)
@@ -44,6 +43,7 @@ namespace clean_architecture_template.Controllers
         }
 
         [HttpPost("[action]")]
+        [Authorize]
         public async Task<IActionResult> Read()
         {
             return StatusCode(StatusCodes.Status200OK, _response.Ok());
