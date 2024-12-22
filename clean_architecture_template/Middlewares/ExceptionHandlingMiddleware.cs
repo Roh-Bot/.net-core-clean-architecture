@@ -5,17 +5,23 @@ namespace clean_architecture_template.Middlewares
     // You may need to install the Microsoft.AspNetCore.Http.Abstractions package into your project
     public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
     {
-        public async Task Invoke(HttpContext httpContext)
+        public async Task Invoke(HttpContext context)
         {
             try
             {
-                await next(httpContext);
+                await next(context);
             }
             catch (Exception ex)
             {
                 logger.LogError("{ExceptionType} {ExceptionMessage}", ex.GetType().ToString(), ex.Message);
-                httpContext.Response.StatusCode = 500;
-                await httpContext.Response.WriteAsJsonAsync(new Response().InternalServerError());
+
+                context.Response.StatusCode = ex switch
+                {
+                    TimeoutException => StatusCodes.Status504GatewayTimeout,
+                    _ => StatusCodes.Status500InternalServerError
+                };
+                context.Response.StatusCode = 500;
+                await context.Response.WriteAsJsonAsync(new Response().InternalServerError());
             }
         }
     }

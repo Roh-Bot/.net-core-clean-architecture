@@ -28,8 +28,10 @@ namespace clean_architecture_template
             builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
             {
                 containerBuilder.RegisterType<DatabaseConnectionFactory>().SingleInstance();
+
                 containerBuilder.RegisterType<UserService>().As<IUserService>().InstancePerLifetimeScope();
                 containerBuilder.RegisterType<UserRepository>().As<IUserRepository>().InstancePerLifetimeScope();
+                containerBuilder.RegisterType<MiscService>().As<IMiscService>().InstancePerLifetimeScope();
             });
 
             Console.WriteLine(builder.Environment.ApplicationName);
