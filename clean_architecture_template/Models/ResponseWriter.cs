@@ -42,6 +42,15 @@ namespace clean_architecture_template.Models
             };
         }
 
+        public Response Unauthorized()
+        {
+            return new Response()
+            {
+                Status = -1,
+                Error = "Unauthorized"
+            };
+        }
+
         public Response InternalServerError()
         {
             return new Response()

@@ -2,18 +2,13 @@
 
 namespace clean_architecture_template.Models
 {
-    public class UserModel : IValidatableObject
+    public class UserModel
     {
         [Required(ErrorMessage = "User name is required")]
         [StringLength(maximumLength: 14, ErrorMessage = "User name cannot be more than 14 characters")]
         public string? Username { get; set; }
-
-        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
-        {
-            if (false)
-            {
-                yield return new ValidationResult("");
-            }
-        }
+        [Required(ErrorMessage = "User email is required")]
+        [EmailAddress]
+        public string? Email { get; set; }
     }
 }
