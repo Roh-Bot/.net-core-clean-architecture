@@ -13,7 +13,7 @@ namespace clean_architecture_template.Middlewares
             }
             catch (Exception ex)
             {
-                logger.LogError("{ExceptionType} {ExceptionMessage}", ex.GetType().ToString(), ex.Message);
+                logger.LogError("{ExceptionType} {ExceptionMessage} \n {ExceptionStackTrace}", ex.GetType().ToString(), ex.Message, ex.StackTrace);
 
                 context.Response.StatusCode = ex switch
                 {

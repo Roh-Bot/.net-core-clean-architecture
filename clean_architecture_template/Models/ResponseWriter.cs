@@ -27,9 +27,9 @@ namespace clean_architecture_template.Models
             };
         }
 
-        public Response BadRequest(ModelStateDictionary modelState)
+        public Response BadRequest(ModelStateDictionary? modelState = null)
         {
-            var errorMessage = modelState
+            var errorMessage = modelState?
                 .Values
                 .SelectMany(v => v.Errors)
                 .Select(e => e.ErrorMessage)
@@ -38,7 +38,7 @@ namespace clean_architecture_template.Models
             return new Response()
             {
                 Status = -1,
-                Error = errorMessage
+                Error = errorMessage ?? "Bad Request"
             };
         }
 

@@ -25,7 +25,7 @@ builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 // Add services to the container.
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
 {
-    containerBuilder.RegisterType<DatabaseConnectionFactory>().SingleInstance();
+    containerBuilder.RegisterType<DatabaseFactory>().SingleInstance();
 
     containerBuilder.RegisterType<UserService>().As<IUserService>().InstancePerLifetimeScope();
     containerBuilder.RegisterType<UserRepository>().As<IUserRepository>().InstancePerLifetimeScope();
