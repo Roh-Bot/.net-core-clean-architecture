@@ -1,3 +1,6 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using clean_architecture_template.Middlewares;
@@ -5,19 +8,18 @@ using clean_architecture_template.Models;
 using Core.ServiceContracts;
 using Core.Services;
 using Data;
-using Data.Repositories;
-using Data.RepositoryContracts;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Polly;
+using Polly.Timeout;
 using Serilog;
-using System.Text;
-using System.Text.Json;
-
 
 var builder = WebApplication.CreateBuilder(args);
+
+#region Autofac DI container
 
 // Configuring DI Container
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
@@ -27,11 +29,13 @@ builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
 {
     containerBuilder.RegisterType<DatabaseFactory>().SingleInstance();
 
-    containerBuilder.RegisterType<UserService>().As<IUserService>().InstancePerLifetimeScope();
-    containerBuilder.RegisterType<UserRepository>().As<IUserRepository>().InstancePerLifetimeScope();
     containerBuilder.RegisterType<MiscService>().As<IMiscService>().InstancePerLifetimeScope();
-    containerBuilder.RegisterType<JwtService>().As<IJwtService>().InstancePerLifetimeScope();
+    //containerBuilder.RegisterType<JwtService>().As<IJwtService>().InstancePerLifetimeScope();
 });
+
+#endregion
+
+#region Serilog logger
 
 // Configure Serilog logging
 builder.Host.UseSerilog((context, services, loggerConfiguration) =>
@@ -43,12 +47,15 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
         .Enrich.WithProperty("Environment", builder.Environment.EnvironmentName)
         .Enrich.FromLogContext()
         .WriteTo.File(
-            path:
             $"{builder.Configuration["LogFilePath"]}{DateTime.Now:yyyy}/{DateTime.Now:MM}/{DateTime.Now:dd}/log-.txt",
             rollingInterval: RollingInterval.Hour,
             retainedFileCountLimit: 7
         );
 });
+
+#endregion
+
+#region Controller config
 
 // Add services for controllers
 builder.Services
@@ -69,7 +76,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
     options.InvalidModelStateResponseFactory = context =>
     {
-        return new BadRequestObjectResult(new Response()
+        return new BadRequestObjectResult(new Response
         {
             Status = -1,
             Error = context.ModelState.Values
@@ -80,8 +87,45 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     };
 });
 
+#endregion
+
+#region HttpClient
+
 // Add HttpClient
-builder.Services.AddHttpClient();
+builder.Services.AddHttpClient<IHttpClientService, HttpClientService>()
+    .AddPolicyHandler(Policy<HttpResponseMessage>
+        .Handle<HttpRequestException>()
+        .Or<TaskCanceledException>()
+        .OrResult(response =>
+            response.StatusCode
+                is HttpStatusCode.InternalServerError
+                or HttpStatusCode.GatewayTimeout
+                or HttpStatusCode.ServiceUnavailable
+        )
+        .WaitAndRetryAsync(
+            Convert.ToInt32(builder.Configuration["Http:RetryCount"]!),
+            retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+            onRetry: (response, timespan, retryCount, _) =>
+            {
+                Log.Warning(
+                    "Retrying {RetryCount}/{MaxRetries} after {Delay} due to {Reason}",
+                    retryCount,
+                    builder.Configuration["Http:RetryCount"],
+                    timespan,
+                    response.Exception?.Message ?? response.Result?.StatusCode.ToString()
+                );
+            })
+    )
+    .AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(
+        TimeSpan.FromSeconds(Convert.ToInt32(builder.Configuration["Http:RetryTimeout"]!)),
+        TimeoutStrategy.Optimistic
+    ));
+
+#endregion
+
+#region Authentication
+
+#region Basic Auth
 
 // Add Basic Authentication
 //builder.Services.AddAuthentication(options =>
@@ -90,48 +134,59 @@ builder.Services.AddHttpClient();
 //})
 //.AddScheme<AuthenticationSchemeOptions, BasicAuthenticationHandler>("Basic", options => { });
 
+#endregion
+
+#region JWT
+
 // Add Jwt Authentication
-builder.Services.AddAuthentication(options =>
-    {
-        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    })
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters()
-        {
-            ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]!))
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnAuthenticationFailed = context =>
-            {
-                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                logger.LogError("Authentication failed: {Error}", context.Exception.Message);
-                context.Response.StatusCode = 401;
-                return Task.FromResult(context.Response.WriteAsJsonAsync(new Response().Unauthorized()));
-            }
-        };
-    });
+//builder.Services.AddAuthentication(options =>
+//    {
+//        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+//        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+//    })
+//    .AddJwtBearer(options =>
+//    {
+//        options.TokenValidationParameters = new TokenValidationParameters
+//        {
+//            ValidateAudience = true,
+//            ValidAudience = builder.Configuration["Jwt:Audience"],
+//            ValidateIssuer = true,
+//            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+//            ValidateLifetime = true,
+//            ValidateIssuerSigningKey = true,
+//            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]!))
+//        };
+//        options.Events = new JwtBearerEvents
+//        {
+//            OnAuthenticationFailed = context =>
+//            {
+//                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+//                logger.LogError("Authentication failed: {Error}", context.Exception.Message);
+//                context.Response.StatusCode = 401;
+//                return Task.FromResult(context.Response.WriteAsJsonAsync(new Response().Unauthorized()));
+//            }
+//        };
+//    });
+
+#endregion
+
+#endregion
+
+#region Swagger
 
 // Add Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme()
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
         BearerFormat = "JWT",
         Scheme = "bearer",
         Type = SecuritySchemeType.Http,
         In = ParameterLocation.Header,
-        Description = "Enter 'Bearer' [space] and then your valid token in the text input below.\n\nExample: \"Bearer eyJhb...\""
+        Description =
+            "Enter 'Bearer' [space] and then your valid token in the text input below.\n\nExample: \"Bearer eyJhb...\""
     });
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
@@ -149,6 +204,10 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+#endregion
+
+#region HTTP Logging
+
 builder.Services.AddHttpLogging(options =>
 {
     options.LoggingFields =
@@ -159,6 +218,10 @@ builder.Services.AddHttpLogging(options =>
         HttpLoggingFields.RequestBody |
         HttpLoggingFields.ResponseStatusCode;
 });
+
+#endregion
+
+#region Entrypoint
 
 var app = builder.Build();
 
@@ -186,7 +249,9 @@ app.UseAuthorization();
 
 // Route configuration
 app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller}/{action}/{id?}");
+    "default",
+    "{controller}/{action}/{id?}");
 
 app.Run();
+
+#endregion
