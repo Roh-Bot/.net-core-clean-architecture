@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
@@ -8,10 +7,8 @@ using clean_architecture_template.Models;
 using Core.ServiceContracts;
 using Core.Services;
 using Data;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Polly;
 using Polly.Timeout;
@@ -70,6 +67,8 @@ builder.Services
         options.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.AllowTrailingCommas = false;
     });
+
+builder.Services.Configure<MvcOptions>(options => options.AllowEmptyInputInBodyModelBinding = true);
 
 // To handle invalid model state error from Required attribute
 builder.Services.Configure<ApiBehaviorOptions>(options =>
@@ -213,10 +212,9 @@ builder.Services.AddHttpLogging(options =>
     options.LoggingFields =
         HttpLoggingFields.RequestMethod |
         HttpLoggingFields.RequestPath |
-        HttpLoggingFields.RequestHeaders |
         HttpLoggingFields.RequestQuery |
         HttpLoggingFields.RequestBody |
-        HttpLoggingFields.ResponseStatusCode;
+        HttpLoggingFields.ResponseBody;
 });
 
 #endregion

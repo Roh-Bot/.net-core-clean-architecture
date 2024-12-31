@@ -1,4 +1,5 @@
 ﻿using Core.ServiceContracts;
+using Core.ServiceRecords;
 
 namespace Core.Services
 {
@@ -6,8 +7,12 @@ namespace Core.Services
     {
         public async Task<string> GetCatFacts()
         {
-            var response = await httpClient.SendAsync(new HttpRequestMessage(),
-                HttpCompletionOption.ResponseContentRead, new CancellationTokenSource().Token);
+            var request = new HttpRequestRecord
+            {
+                RequestUri = new Uri("https://cat-fact.herokuapp.com/facts"),
+                Method = HttpMethod.Get
+            };
+            var response = await httpClient.SendAsync(request, new CancellationTokenSource().Token);
             return string.Empty;
         }
     }
