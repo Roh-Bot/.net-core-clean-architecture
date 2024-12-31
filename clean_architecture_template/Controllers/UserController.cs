@@ -30,14 +30,8 @@ namespace clean_architecture_template.Controllers
                 return StatusCode(StatusCodes.Status400BadRequest, _response.BadRequest(ModelState));
             }
 
-            var userDto = new UserDto()
-            {
-                Id = 12,
-                Username = user.Username,
-                Email = user.Email,
-            };
-            await userService.Create(userDto);
-            var token = jwtService.CreateToken(userDto);
+            await userService.Create(user.ToDto());
+            var token = jwtService.CreateToken(user.ToDto());
             var responseObject = new { token = token };
             return StatusCode(StatusCodes.Status200OK, _response.Ok(responseObject));
         }
