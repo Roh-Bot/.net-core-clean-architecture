@@ -10,7 +10,9 @@ namespace Core.Services
             var request = new HttpRequestRecord
             {
                 RequestUri = new Uri("https://cat-fact.herokuapp.com/facts"),
-                Method = HttpMethod.Get
+                Method = HttpMethod.Get,
+                Headers = {{"Content-Type","application/json"}},
+                Body = ""
             };
             var response = await httpClient.SendAsync(request, new CancellationTokenSource().Token);
             return string.Empty;
