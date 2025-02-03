@@ -30,16 +30,10 @@ namespace clean_architecture_template.Models
         public Response BadRequest(ModelStateDictionary? modelState = null)
         {
             var errorMessage = modelState?
-                    .Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .FirstOrDefault(msg => msg.Contains("The JSON value could not be converted"))
-                is not null
-                ? "Invalid data format in the request payload."
-                : modelState?.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .FirstOrDefault();
+                .Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .FirstOrDefault();
 
             return new Response()
             {
@@ -48,12 +42,12 @@ namespace clean_architecture_template.Models
             };
         }
 
-        public Response Unauthorized()
+        public Response Unauthorized(string errorMessage = "Unauthorized")
         {
             return new Response()
             {
                 Status = -1,
-                Error = "Unauthorized"
+                Error = errorMessage
             };
         }
 

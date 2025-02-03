@@ -1,5 +1,5 @@
 ﻿using Core.Dto;
-using Data.Entities;
+using Domain.Entities;
 
 namespace Core.ServiceContracts
 {
