@@ -1,6 +1,4 @@
 using System.Net;
-using System.Security.Claims;
-using System.Text;
 using System.Text.Json;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
@@ -11,6 +9,7 @@ using Core.Services;
 using Domain.RepositoryContracts;
 using Infrastructure;
 using Infrastructure.Repositories;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi.Models;
@@ -18,8 +17,6 @@ using Polly;
 using Polly.Timeout;
 using Serilog;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.IdentityModel.Tokens;
 using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -134,75 +131,11 @@ builder.Services.AddHttpClient<IHttpClientService, HttpClientService>()
 
 #region Authentication
 
-#region JWT
-
 //Add Jwt Authentication
-builder.Services.AddAuthentication()
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]!))
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnTokenValidated = async context =>
-            {
-                var email = context.Principal?.FindFirst(ClaimTypes.Email)?.Value;
-                var tokenVersion = context.Principal?.FindFirst("version")?.Value;
+builder.Services.AddAuthentication(options => options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme)
+    .AddScheme<AuthenticationSchemeOptions, JwtAuthenticationHandler>(JwtBearerDefaults.AuthenticationScheme,
+        options => { });
 
-                var userService = context.HttpContext.RequestServices.GetRequiredService<IJwtService>();
-                var currentTokenUserVersion = userService.GetTokenUserVersion(email!);
-
-                if (tokenVersion != currentTokenUserVersion)
-                {
-                    var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                    logger.LogWarning("POSSIBLE SECURITY ATTACK: Invalid token version detected for user: {Email}", email);
-
-                    context.Fail("Invalid version. Token is outdated."); 
-
-                    // Optionally, return a custom response
-                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    await context.Response.WriteAsJsonAsync(new Response().Unauthorized("Authentication token is outdated"));
-                    await context.Response.CompleteAsync();
-                    return;
-                }
-
-                await Task.CompletedTask;
-            },
-            OnAuthenticationFailed = async context =>
-            {
-                var endpoint = context.HttpContext.GetEndpoint();
-                if (endpoint?.Metadata.GetMetadata<AllowAnonymousAttribute>() != null)
-                {
-                    return;
-                }
-                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                logger.LogError("Authentication failed: {Error}", context.Exception.Message);
-                context.Response.StatusCode = 401;
-                await context.Response.WriteAsJsonAsync(new Response().Unauthorized("Invalid Authentication Token"));
-            },
-            OnChallenge = async context =>
-            {
-                context.HandleResponse();
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsJsonAsync(new Response().Unauthorized("Authentication Token is missing"));
-            },
-            OnForbidden = async context =>
-            {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsJsonAsync(new Response().Unauthorized("You do not have permission to access this resource."));
-            }
-        };
-    });
-
-#endregion
 
 #endregion
 

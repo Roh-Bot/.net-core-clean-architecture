@@ -1,5 +1,4 @@
-﻿using Core.Dto;
-using Core.ServiceContracts;
+﻿using Core.ServiceContracts;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -7,7 +6,6 @@ using System.Security.Claims;
 using System.Text;
 using Domain.RepositoryContracts;
 using JwtRegisteredClaimNames = Microsoft.IdentityModel.JsonWebTokens.JwtRegisteredClaimNames;
-using Infrastructure.Repositories;
 
 namespace Core.Services
 {

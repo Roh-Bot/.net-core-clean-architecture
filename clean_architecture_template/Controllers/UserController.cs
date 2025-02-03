@@ -47,7 +47,7 @@ namespace clean_architecture_template.Controllers
             return StatusCode(StatusCodes.Status200OK, _response.Ok());
         }
 
-        [AllowAnonymous]
+        [Authorize]
         [HttpPost("generate-new-token")]
         public async Task<IActionResult> GenerateNewToken([FromBody] RefreshTokenModel model)
         {
