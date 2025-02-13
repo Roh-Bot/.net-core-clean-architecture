@@ -13,7 +13,7 @@ namespace Core.Services
 {
     public class HttpClientService(HttpClient httpClient, IConfiguration configuration, ILogger<HttpClientService> logger) : IHttpClientService
     {
-        private readonly int _retryAfter = Convert.ToInt32(configuration["Http:RetryCount"]);
+        private readonly int _retryAfter = Convert.ToInt32(configuration["Http:RetryAfter"]);
         private readonly int _retryCount = Convert.ToInt32(configuration["Http:RetryCount"]);
         public async Task<HttpResponseMessage> SendAsync(HttpRequestRecord request, CancellationToken cancellationToken)
         {

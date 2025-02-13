@@ -1,5 +1,4 @@
 ﻿using Core.Dto;
-
 namespace Core.ServiceContracts
 {
     public interface IJwtService
@@ -10,5 +9,6 @@ namespace Core.ServiceContracts
         public string GetPrincipalEmailFromToken();
         public string GetTokenUserVersion(string email);
         public void IncrementUserVersion(string email);
+        public int GetCookieExpiration();
     }
 }

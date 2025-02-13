@@ -34,6 +34,15 @@ namespace clean_architecture_template.Controllers
 
             await userService.Create(user.ToDto());
             var authToken = jwtService.GenerateJwtToken(user.Email);
+            
+            HttpContext.Response.Cookies.Append("accessToken", authToken, new CookieOptions()
+            {
+                Expires = DateTime.Now.AddMinutes(jwtService.GetCookieExpiration()),
+                HttpOnly = true,
+                IsEssential = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict
+            });
             var refreshToken = jwtService.GenerateRefreshToken(user.Email);
 
             var responseObject = new { authToken = authToken, refreshToken = refreshToken };

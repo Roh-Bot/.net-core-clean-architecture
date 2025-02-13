@@ -77,13 +77,8 @@ namespace clean_architecture_template.Middlewares;
 
         private static string? ExtractTokenFromHeader(HttpContext context)
         {
-            var authHeader = context.Request.Headers.Authorization.ToString();
-            if (authHeader.IsNullOrEmpty() || !authHeader.StartsWith("Bearer "))
-            {
-                return null;
-            }
-
-            return authHeader["Bearer ".Length..];
+            context.Request.Cookies.TryGetValue("authToken", out var authHeader);
+            return authHeader;
         }
 
         private ClaimsPrincipal? ValidateToken(string token)

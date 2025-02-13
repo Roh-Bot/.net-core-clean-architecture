@@ -84,6 +84,11 @@ namespace Core.Services
             return userRepo.GetTokenUserVersion(email);
         }
 
+        public int GetCookieExpiration()
+        {
+            return Convert.ToInt32(configuration["Jwt:TokenExpirationMinutes"]);
+        }
+
         private string? CreateToken(DateTime expiration, string email)
         {
             // Define claims
