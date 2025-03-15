@@ -1,4 +1,4 @@
-﻿namespace Domain.Constants
+﻿namespace Infrastructure.Constants
 {
     public static class UserConstants
     {

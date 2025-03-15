@@ -1,11 +1,11 @@
 ﻿using System.Collections.Concurrent;
-using Domain.Constants;
 using Microsoft.Data.SqlClient;
 using System.Data;
 using Dapper;
 using Domain.Entities;
 using Domain.RepositoryContracts;
 using Domain.Globals;
+using Infrastructure.Constants;
 
 namespace Infrastructure.Repositories
 {
