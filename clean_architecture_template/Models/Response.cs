@@ -29,16 +29,60 @@ namespace clean_architecture_template.Models
 
         public Response BadRequest(ModelStateDictionary? modelState = null)
         {
-            var errorMessage = modelState?
+            //The JSON value could not be converted to System.String. Path: $.username | LineNumber: 1 | BytePositionInLine: 15.
+            //"JSON deserialization for type 'clean_architecture_template.Models.UserModel' was missing required properties including: 'email', 'password'."
+
+            var errorMessages = modelState?
                 .Values
                 .SelectMany(v => v.Errors)
-                .Select(e => e.ErrorMessage)
-                .FirstOrDefault();
+                .Select(e => e.ErrorMessage);
+
+            if (errorMessages?.FirstOrDefault(e => e.Contains("The JSON object contains a trailing comma")) is not null)
+            {
+                return new Response()
+                {
+                    Status = -1,
+                    Error = "Invalid JSON format received"
+                };
+            }
+
+            var dataTypeValidationError = errorMessages?.FirstOrDefault(e => e.Contains("could not be converted"));
+            if (dataTypeValidationError is not null)
+            {
+                dataTypeValidationError = dataTypeValidationError[(dataTypeValidationError.IndexOf("$.", StringComparison.CurrentCulture) + 2)..];
+                return new Response()
+                {
+                    Status = -1,
+                    Error = $"Incorrect datatype received for parameter: '{dataTypeValidationError[..dataTypeValidationError.IndexOf(' ')]}' "
+                };
+            }
+
+            var missingParametersValidationError =
+                errorMessages.FirstOrDefault(e => e.Contains("missing required properties"));
+            if (missingParametersValidationError is not null)
+            {
+                missingParametersValidationError =
+                    missingParametersValidationError[missingParametersValidationError.IndexOf(':')..];
+                return new Response()
+                {
+                    Status = -1,
+                    Error = $"Payload received with missing mandatory parameters{missingParametersValidationError}"
+                };
+            }
+
+            if (errorMessages.FirstOrDefault(e => e.Contains("field is required")) is not null)
+            {
+                return new Response()
+                {
+                    Status = -1,
+                    Error = "Empty payload received"
+                };
+            }
 
             return new Response()
             {
                 Status = -1,
-                Error = errorMessage ?? "Bad Request"
+                Error = "Bad Request"
             };
         }
 
