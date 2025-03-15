@@ -1,10 +1,10 @@
-﻿namespace Data.Constants
+﻿namespace Infrastructure.Constants
 {
     public static class UserConstants
     {
         #region Stored Procedures
 
-        public static readonly string SpName = "SpName";
+        public const string SpName = "SpName";
 
         #endregion
 
@@ -14,4 +14,4 @@
 
         #endregion
     }
-}
+}   

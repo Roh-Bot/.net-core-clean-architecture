@@ -1,7 +1,7 @@
 ﻿using Core.Dto;
 using Core.ServiceContracts;
-using Data.Entities;
-using Data.RepositoryContracts;
+using Domain.Entities;
+using Domain.RepositoryContracts;
 
 namespace Core.Services
 {
@@ -14,7 +14,7 @@ namespace Core.Services
                 Username = u.Username
 
             };
-            await userRepository.Create(user);
+            //await userRepository.Create(user);
         }
 
         public async Task<User> Read(UserDto u)

@@ -6,13 +6,18 @@ using clean_architecture_template.Middlewares;
 using clean_architecture_template.Models;
 using Core.ServiceContracts;
 using Core.Services;
-using Data;
+using Domain.RepositoryContracts;
+using Infrastructure;
+using Infrastructure.Repositories;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi.Models;
 using Polly;
 using Polly.Timeout;
 using Serilog;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,10 +29,14 @@ builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 // Add services to the container.
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
 {
-    containerBuilder.RegisterType<DatabaseFactory>().SingleInstance();
+    containerBuilder.RegisterType<DatabaseFactory>().As<IDatabaseFactory>().SingleInstance();
+
+    containerBuilder.RegisterType<UserService>().As<IUserService>().InstancePerLifetimeScope();
+    containerBuilder.RegisterType<UserRepository>().As<IUserRepository>().InstancePerLifetimeScope();
 
     containerBuilder.RegisterType<MiscService>().As<IMiscService>().InstancePerLifetimeScope();
-    //containerBuilder.RegisterType<JwtService>().As<IJwtService>().InstancePerLifetimeScope();
+
+    containerBuilder.RegisterType<JwtService>().As<IJwtService>().InstancePerLifetimeScope();
 });
 
 #endregion
@@ -43,10 +52,18 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
         .Enrich.WithProperty("ApplicationName", builder.Environment.ApplicationName)
         .Enrich.WithProperty("Environment", builder.Environment.EnvironmentName)
         .Enrich.FromLogContext()
+        .WriteTo.Console(
+            restrictedToMinimumLevel: LogEventLevel.Information
+        )
         .WriteTo.File(
-            $"{builder.Configuration["LogFilePath"]}{DateTime.Now:yyyy}/{DateTime.Now:MM}/{DateTime.Now:dd}/log-.txt",
+            $"{builder.Configuration["LogFilePath"]}/{builder.Environment.ApplicationName}/{DateTime.Now:yyyy}/{DateTime.Now:MM}/{DateTime.Now:dd}/log-.txt",
             rollingInterval: RollingInterval.Hour,
-            retainedFileCountLimit: 7
+            retainedFileCountLimit: 7,
+            restrictedToMinimumLevel: LogEventLevel.Information
+        )
+        .WriteTo.Seq(
+            serverUrl: "http://localhost:5341/",
+            restrictedToMinimumLevel: LogEventLevel.Information
         );
 });
 
@@ -73,17 +90,7 @@ builder.Services.Configure<MvcOptions>(options => options.AllowEmptyInputInBodyM
 // To handle invalid model state error from Required attribute
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
-    options.InvalidModelStateResponseFactory = context =>
-    {
-        return new BadRequestObjectResult(new Response
-        {
-            Status = -1,
-            Error = context.ModelState.Values
-                .SelectMany(v => v.Errors)
-                .Select(e => e.ErrorMessage)
-                .FirstOrDefault()
-        });
-    };
+    options.InvalidModelStateResponseFactory = context => new BadRequestObjectResult(new Response().BadRequest(context.ModelState));
 });
 
 #endregion
@@ -124,50 +131,11 @@ builder.Services.AddHttpClient<IHttpClientService, HttpClientService>()
 
 #region Authentication
 
-#region Basic Auth
+//Add Jwt Authentication
+builder.Services.AddAuthentication(options => options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme)
+    .AddScheme<AuthenticationSchemeOptions, JwtAuthenticationHandler>(JwtBearerDefaults.AuthenticationScheme,
+        options => { });
 
-// Add Basic Authentication
-//builder.Services.AddAuthentication(options =>
-//{
-//    options.DefaultScheme = "Basic";
-//})
-//.AddScheme<AuthenticationSchemeOptions, BasicAuthenticationHandler>("Basic", options => { });
-
-#endregion
-
-#region JWT
-
-// Add Jwt Authentication
-//builder.Services.AddAuthentication(options =>
-//    {
-//        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-//        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-//    })
-//    .AddJwtBearer(options =>
-//    {
-//        options.TokenValidationParameters = new TokenValidationParameters
-//        {
-//            ValidateAudience = true,
-//            ValidAudience = builder.Configuration["Jwt:Audience"],
-//            ValidateIssuer = true,
-//            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-//            ValidateLifetime = true,
-//            ValidateIssuerSigningKey = true,
-//            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]!))
-//        };
-//        options.Events = new JwtBearerEvents
-//        {
-//            OnAuthenticationFailed = context =>
-//            {
-//                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-//                logger.LogError("Authentication failed: {Error}", context.Exception.Message);
-//                context.Response.StatusCode = 401;
-//                return Task.FromResult(context.Response.WriteAsJsonAsync(new Response().Unauthorized()));
-//            }
-//        };
-//    });
-
-#endregion
 
 #endregion
 
@@ -233,6 +201,8 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseExceptionHandlingMiddleware();
+
+app.UseRequestBufferingMiddleware();
 
 app.UseSerilogRequestLogging();
 
