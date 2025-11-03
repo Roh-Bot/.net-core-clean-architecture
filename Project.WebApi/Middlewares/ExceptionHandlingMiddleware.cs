@@ -1,4 +1,6 @@
 ﻿using Project.WebApi.Models;
+using System.ComponentModel.DataAnnotations;
+using Project.Core.Exceptions;
 
 namespace Project.WebApi.Middlewares
 {
@@ -11,6 +13,20 @@ namespace Project.WebApi.Middlewares
             {
                 await next(context);
             }
+            catch (BusinessRuleException ex)
+            {
+                logger.LogError("{ExceptionType} {ExceptionMessage} \n {ExceptionStackTrace}", ex.GetType().ToString(), ex.Message, ex.StackTrace);
+
+                context.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
+                await context.Response.WriteAsJsonAsync(new Response().BadRequest());
+            }
+            catch (ValidationException ex)
+            {
+                logger.LogError("{ExceptionType} {ExceptionMessage} \n {ExceptionStackTrace}", ex.GetType().ToString(), ex.Message, ex.StackTrace);
+
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response.WriteAsJsonAsync(new Response().BadRequest());
+            }
             catch (Exception ex)
             {
                 logger.LogError("{ExceptionType} {ExceptionMessage} \n {ExceptionStackTrace}", ex.GetType().ToString(), ex.Message, ex.StackTrace);
@@ -20,7 +36,7 @@ namespace Project.WebApi.Middlewares
                     TimeoutException => StatusCodes.Status504GatewayTimeout,
                     _ => StatusCodes.Status500InternalServerError
                 };
-                context.Response.StatusCode = 500;
+                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
                 await context.Response.WriteAsJsonAsync(new Response().InternalServerError());
             }
         }

@@ -10,6 +10,7 @@ using Polly.Timeout;
 using Project.Core.Application;
 using Project.Core.Interfaces;
 using Project.Infrastructure;
+using Project.Infrastructure.Clients;
 using Project.Infrastructure.Repositories;
 using Project.WebApi.Authentication;
 using Project.WebApi.Middlewares;
@@ -17,6 +18,7 @@ using Project.WebApi.Models;
 using Serilog;
 using Serilog.Events;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,6 +32,8 @@ builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
 {
     containerBuilder.RegisterType<DatabaseFactory>().SingleInstance();
+    containerBuilder.RegisterType<HttpPollyClient>()
+        .SingleInstance();
 
     containerBuilder.RegisterType<UserUseCase>().InstancePerLifetimeScope();
     containerBuilder.RegisterType<UserRepository>().As<IUserRepository>().InstancePerLifetimeScope();
@@ -95,8 +99,12 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 
 #region HttpClient
 
-// Add HttpClient
-builder.Services.AddHttpClient<HttpClientService>()
+// Add Default HttpClient
+builder.Services.AddHttpClient(nameof(HttpExternalClients.Default), client =>
+    {
+        client.Timeout = TimeSpan.Parse(builder.Configuration["Http:Default:RetryTimeout"]!);
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+    })
     .AddPolicyHandler(Policy<HttpResponseMessage>
         .Handle<HttpRequestException>()
         .Or<TaskCanceledException>()
@@ -105,25 +113,62 @@ builder.Services.AddHttpClient<HttpClientService>()
                 is HttpStatusCode.InternalServerError
                 or HttpStatusCode.GatewayTimeout
                 or HttpStatusCode.ServiceUnavailable
+                or HttpStatusCode.NotFound
         )
         .WaitAndRetryAsync(
-            Convert.ToInt32(builder.Configuration["Http:RetryCount"]!),
-            retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+            Convert.ToInt32(builder.Configuration["Http:Default:RetryCount"]!),
+            retryAttempt => TimeSpan.Parse(builder.Configuration["Http:Default:RetryAfter"]!),
             onRetry: (response, timespan, retryCount, _) =>
             {
                 Log.Warning(
                     "Retrying {RetryCount}/{MaxRetries} after {Delay} due to {Reason}",
                     retryCount,
-                    builder.Configuration["Http:RetryCount"],
+                    builder.Configuration["Http:Default:RetryCount"],
                     timespan,
                     response.Exception?.Message ?? response.Result?.StatusCode.ToString()
                 );
             })
     )
     .AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(
-        TimeSpan.FromSeconds(Convert.ToInt32(builder.Configuration["Http:RetryTimeout"]!)),
+            TimeSpan.Parse(builder.Configuration["Http:Default:RetryTimeout"]!),
         TimeoutStrategy.Optimistic
     ));
+
+// Add Default HttpClient
+builder.Services.AddHttpClient(nameof(HttpExternalClients.Weather), client =>
+    {
+        client.Timeout = TimeSpan.Parse(builder.Configuration["Http:Weather:RetryTimeout"]!);
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+    })
+    .AddPolicyHandler(Policy<HttpResponseMessage>
+        .Handle<HttpRequestException>()
+        .Or<TaskCanceledException>()
+        .OrResult(response =>
+            response.StatusCode
+                is HttpStatusCode.InternalServerError
+                or HttpStatusCode.GatewayTimeout
+                or HttpStatusCode.ServiceUnavailable
+                or HttpStatusCode.NotFound
+        )
+        .WaitAndRetryAsync(
+            Convert.ToInt32(builder.Configuration["Http:Weather:RetryCount"]!),
+            retryAttempt => TimeSpan.Parse(builder.Configuration["Http:Weather:RetryAfter"]!),
+            onRetry: (response, timespan, retryCount, _) =>
+            {
+                Log.Warning(
+                    "Retrying {RetryCount}/{MaxRetries} after {Delay} due to {Reason}",
+                    retryCount,
+                    builder.Configuration["Http:Weather:RetryCount"],
+                    timespan,
+                    response.Exception?.Message ?? response.Result?.StatusCode.ToString()
+                );
+            })
+    )
+    .AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(
+            TimeSpan.Parse(builder.Configuration["Http:Weather:RetryTimeout"]!),
+        TimeoutStrategy.Optimistic
+    ));
+
 
 #endregion
 
