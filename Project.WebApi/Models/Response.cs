@@ -55,7 +55,7 @@ public class Response
             .Where(ms => ms.Value?.Errors.Count > 0)
             .SelectMany(kvp => kvp.Value!.Errors.Select(e => new
             {
-                Field = kvp.Key[2..],
+                Field = kvp.Key.Length > 1 ? kvp.Key[2..] : "",
                 Message = e.ErrorMessage
             }))
             .ToList();
@@ -70,18 +70,8 @@ public class Response
             };
         }
 
-        var dataTypeValidationError = errors?.Where(e => e.Message.Contains("could not be converted")).Select(e => e.Field);
-        if (dataTypeValidationError is not null)
-        {
-            return new Response()
-            {
-                Status = -1,
-                Message = $"Incorrect datatype received for parameters: {string.Join(',', dataTypeValidationError)} "
-            };
-        }
-
-        var missingParametersValidationError = errors?.Where(e => e.Message.Contains("missing required properties")).Select(e => e.Field);
-        if (missingParametersValidationError is not null)
+        var missingParametersValidationError = errors?.Where(e => e.Message.Contains("missing required properties")).Select(e => e.Field.IsNullOrEmpty() ? e.Message[e.Message.IndexOf("including: ")..] : e.Field);
+        if (missingParametersValidationError != null && missingParametersValidationError.Any())
         {
             return new Response()
             {
@@ -90,12 +80,13 @@ public class Response
             };
         }
 
-        if (errors?.FirstOrDefault(e => e.Message.Contains("field is required")) is not null)
+        var dataTypeValidationError = errors?.Where(e => e.Message.Contains("could not be converted")).Select(e => e.Field);
+        if (dataTypeValidationError != null && dataTypeValidationError.Any())
         {
             return new Response()
             {
                 Status = -1,
-                Message = "Empty payload received"
+                Message = $"Incorrect datatype received for parameters: {string.Join(',', dataTypeValidationError)} "
             };
         }
 
